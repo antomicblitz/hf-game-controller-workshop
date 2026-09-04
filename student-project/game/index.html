@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Controller Game Starter</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <main class="page">
+    <p><a href="../">← Project home</a></p>
+    <h1>Collect the stars</h1>
+    <p class="help">Move with the controller or Arrow keys. Action A / Z dashes. Action B / X restarts.</p>
+    <div class="toolbar"><strong id="score">Stars: 0</strong><span id="controller" class="status">Keyboard ready</span></div>
+    <canvas id="game" width="900" height="520" aria-label="Collect the stars game"></canvas>
+  </main>
+  <script type="module" src="game.js"></script>
+</body>
+</html>

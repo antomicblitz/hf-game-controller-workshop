@@ -1,0 +1,105 @@
+[project]
+name = "hf-game-controller-workshop"
+version = "1.0.0"
+description = "Local game-controller case editor and student workshop kit."
+requires-python = ">=3.10"
+dependencies = [
+    "build123d>=0.7",
+    "numpy-stl>=3.0",
+    "yacv-server==0.9.7; python_version < '3.12'",
+    "yacv-server>=0.11; python_version >= '3.12'",
+    "flask>=3.0",
+    "cairosvg>=2.7",
+    "defusedxml>=0.7",
+    "pygltflib>=1.16",
+    "pillow>=10.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "complexipy>=7.0",
+    "coverage[toml]>=7.6",
+    "hypothesis>=6.100",
+    "pytest>=7.4",
+    "pytest-timeout>=2.3",
+    "ruff>=0.4",
+    "pyright>=1.1.400",
+    "pymarkdownlnt>=0.9",
+    "setuptools>=68",
+    "wheel>=0.42",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["examples/**/submits", "firmware/CIRCUITPY"]
+force-exclude = true
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B", "S", "SIM", "RUF"]
+ignore = ["E501", "RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101"]
+
+[tool.pyright]
+include = ["tools", "examples", "tests"]
+exclude = ["examples/**/submits", "firmware/CIRCUITPY"]
+extraPaths = ["tools"]
+pythonVersion = "3.10"
+typeCheckingMode = "strict"
+
+[tool.pytest.ini_options]
+addopts = "-m 'not slow and not hardware and not network' --timeout=120"
+filterwarnings = [
+    "ignore:Due to '_pack_',.*:DeprecationWarning:lib3mf[.]Lib3MF",
+]
+markers = [
+    "slow: long-running tests excluded from the default gate",
+    "hardware: tests requiring physical workshop hardware",
+    "network: tests requiring external network access",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["tools"]
+omit = [
+    "tools/agent/profiles.py",
+    "tools/cadkit/coupons.py",
+    "tools/cadkit/electronics_backbone.py",
+    "tools/cadkit/evidence.py",
+    "tools/cadkit/export.py",
+    "tools/cadkit/geometry_evidence.py",
+    "tools/cadkit/printers.py",
+    "tools/cadkit/snap.py",
+]
+
+[tool.coverage.report]
+fail_under = 80
+precision = 1
+show_missing = true
+skip_covered = true
+
+[tool.complexipy]
+paths = ["tools", "examples"]
+max-complexity-allowed = 15
+failed = true
+quiet = false
+color = "auto"
+sort = "desc"
+exclude = []
+check-script = false
+no-ignore = true
+report-ignored = true
+
+[tool.pymarkdown]
+extensions.front-matter.enabled = true
+plugins.md013.enabled = false
+
+[build-system]
+requires = ["setuptools>=68", "wheel>=0.42"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["tools"]
+include = ["cadkit*", "agent*", "editor*"]
