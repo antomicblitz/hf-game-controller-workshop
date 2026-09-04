@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>STL Viewer</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <main class="page">
+    <p><a href="../">← Project home</a></p>
+    <h1>STL viewer</h1>
+    <p class="help">Choose a case half or open an STL from your computer. Files stay in your browser.</p>
+    <div class="toolbar">
+      <button class="button" data-stl="../assets/case-top.stl">Top case</button>
+      <button class="button" data-stl="../assets/case-bottom.stl">Bottom case</button>
+      <label class="button">Open STL<input id="file" type="file" accept=".stl,model/stl" hidden></label>
+      <button id="reset" class="button">Reset view</button>
+      <span id="status" class="status">Loading top case…</span>
+    </div>
+    <canvas id="viewer" width="900" height="600" aria-label="Interactive STL preview"></canvas>
+  </main>
+  <script type="importmap">
+    {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js"}}
+  </script>
+  <script type="module" src="viewer.js"></script>
+</body>
+</html>
