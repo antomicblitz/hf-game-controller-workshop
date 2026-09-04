@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup connect disconnect doctor agent editor web web-check check lint markdown typecheck test coverage complexity validate clean
+.PHONY: help setup connect disconnect doctor agent editor web web-check check lint markdown typecheck test coverage complexity validate maintainer-validate clean
 
 VENV := $(CURDIR)/.venv
 VENV_PYTHON := $(VENV)/bin/python
@@ -9,6 +9,8 @@ export PYTHONPATH := $(CURDIR)/tools$(if $(PYTHONPATH),:$(PYTHONPATH))
 
 PYTHON_SOURCES := tools/ examples/ tests/
 TEST_FILES := $(wildcard tests/test_*.py)
+FAST_TEST_FILES := $(wildcard tests/test_firmware_*.py) tests/test_case_edits.py tests/test_security.py
+COMPLEXIPY := $(if $(wildcard $(VENV)/bin/complexipy),$(VENV)/bin/complexipy,complexipy)
 
 help:
 	@printf '%s\n' \
@@ -19,7 +21,7 @@ help:
 	  'make editor      Start the local case editor (Ctrl+C stops)' \
 	  'make web         Start the game/viewer site (Ctrl+C stops)' \
 	  'make check       Run the short student checks' \
-	  'make validate    Run all maintainer quality gates'
+	  'make validate    Run the fast local quality gates'
 
 setup:
 	python3 -m venv $(VENV)
@@ -50,7 +52,7 @@ web-check:
 	$(PYTHON) -m tools.web_check
 
 check: web-check
-	$(PYTHON) -m pytest tests/test_firmware_*.py tests/test_case_edits.py -q
+	$(PYTHON) -m pytest $(FAST_TEST_FILES) -q
 
 lint:
 	$(PYTHON) -m ruff format --check $(PYTHON_SOURCES)
@@ -63,10 +65,7 @@ typecheck:
 	$(PYTHON) -m pyright
 
 test:
-	@for test_file in $(TEST_FILES); do \
-		printf '\n==> %s\n' "$$test_file"; \
-		$(PYTHON) -m pytest "$$test_file" -q || exit 1; \
-	done
+	$(PYTHON) -m pytest $(FAST_TEST_FILES) -q
 
 coverage:
 	$(PYTHON) -m coverage erase
@@ -78,10 +77,15 @@ coverage:
 	$(PYTHON) -m coverage report
 
 complexity:
-	$(PYTHON) -m complexipy.main --plain
+	$(COMPLEXIPY) --plain
 
-validate: lint markdown typecheck coverage complexity web-check
-	@printf '%s\n' 'All quality gates passed.'
+validate: lint markdown typecheck test complexity web-check
+	@printf '%s\n' 'Fast local quality gates passed.'
+
+# Full editor/CAD coverage is intentionally CI/maintainer-only. OpenCascade
+# tests run one module per process and are too slow for ordinary student edits.
+maintainer-validate: validate coverage
+	@printf '%s\n' 'All maintainer quality gates passed.'
 
 clean:
 	find tools examples tests -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true

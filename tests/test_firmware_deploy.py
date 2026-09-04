@@ -10,7 +10,6 @@ _HERE = Path(__file__).resolve().parent
 _SESSION = _HERE.parent
 sys.path.insert(0, str(_SESSION / "tools"))
 
-import firmware  # noqa: E402
 import pytest  # noqa: E402
 from firmware.circuitpython_app import (  # noqa: E402
     HID_REPORT_BYTES,
@@ -22,6 +21,8 @@ from firmware.circuitpython_app import (  # noqa: E402
     resolve_mode,
 )
 from firmware.gpio_map import GPIO_NAMES_BY_CONTROL  # noqa: E402
+
+import firmware  # noqa: E402
 
 
 @dataclass
