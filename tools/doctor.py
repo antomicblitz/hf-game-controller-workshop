@@ -45,7 +45,7 @@ def _check_runtime() -> int:
         "Use macOS or Ubuntu in Windows WSL2.",
     )
     failures += _check(
-        sys.version_info >= (3, 10),
+        sys.version_info[:2] == (3, 12),
         f"Python {platform.python_version()}",
         "Install Python 3.12, then run make setup.",
     )

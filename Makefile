@@ -30,19 +30,19 @@ setup: venv
 venv:
 	@set -eu; \
 	if [ -x "$(VENV_PYTHON)" ] && \
-		"$(VENV_PYTHON)" -c 'import ssl, sys; raise SystemExit(sys.version_info < (3, 10))' >/dev/null 2>&1; then \
+		"$(VENV_PYTHON)" -c 'import ssl, sys; raise SystemExit(sys.version_info[:2] != (3, 12))' >/dev/null 2>&1; then \
 		exit 0; \
 	fi; \
 	python=''; \
-	for candidate in python3.12 python3.11 python3.10 python3; do \
+	for candidate in python3.12 /opt/homebrew/opt/python@3.12/bin/python3.12 /usr/local/opt/python@3.12/bin/python3.12; do \
 		if command -v "$$candidate" >/dev/null 2>&1 && \
-			"$$candidate" -c 'import ssl, sys; raise SystemExit(sys.version_info < (3, 10))' >/dev/null 2>&1; then \
+			"$$candidate" -c 'import ssl, sys; raise SystemExit(sys.version_info[:2] != (3, 12))' >/dev/null 2>&1; then \
 			python="$$candidate"; \
 			break; \
 		fi; \
 	done; \
 	if [ -z "$$python" ]; then \
-		printf '%s\n' 'No usable Python found. Install Python 3.10+ with SSL support, then run make setup again.' >&2; \
+		printf '%s\n' 'Python 3.12 with SSL support is required. Follow docs/01-setup.md, then run make setup again.' >&2; \
 		exit 1; \
 	fi; \
 	printf 'Creating .venv with %s\n' "$$python"; \
@@ -82,7 +82,7 @@ markdown:
 	$(PYTHON) -m pymarkdown --config pyproject.toml scan --recurse --respect-gitignore .
 
 typecheck:
-	$(PYTHON) -m pyright
+	$(PYTHON) -m pyright --pythonpath $(PYTHON)
 
 test:
 	$(PYTHON) -m pytest $(FAST_TEST_FILES) -q

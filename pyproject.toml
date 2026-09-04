@@ -2,7 +2,7 @@
 name = "hf-game-controller-workshop"
 version = "1.0.0"
 description = "Local game-controller case editor and student workshop kit."
-requires-python = ">=3.10"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "build123d>=0.7",
     "numpy-stl>=3.0",
@@ -46,7 +46,7 @@ ignore = ["E501", "RUF001", "RUF002", "RUF003"]
 include = ["tools", "examples", "tests"]
 exclude = ["examples/**/submits", "firmware/CIRCUITPY"]
 extraPaths = ["tools"]
-pythonVersion = "3.10"
+pythonVersion = "3.12"
 typeCheckingMode = "strict"
 
 [tool.pytest.ini_options]
