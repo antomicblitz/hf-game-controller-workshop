@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup connect disconnect doctor agent editor web web-check check lint markdown typecheck test coverage complexity validate maintainer-validate clean
+.PHONY: help setup venv connect disconnect doctor agent editor web web-check check lint markdown typecheck test coverage complexity validate maintainer-validate clean
 
 VENV := $(CURDIR)/.venv
 VENV_PYTHON := $(VENV)/bin/python
@@ -23,10 +23,30 @@ help:
 	  'make check       Run the short student checks' \
 	  'make validate    Run the fast local quality gates'
 
-setup:
-	python3 -m venv $(VENV)
+setup: venv
 	$(VENV_PYTHON) -m pip install --upgrade pip
 	$(VENV_PYTHON) -m pip install -e '.[dev]'
+
+venv:
+	@set -eu; \
+	if [ -x "$(VENV_PYTHON)" ] && \
+		"$(VENV_PYTHON)" -c 'import ssl, sys; raise SystemExit(sys.version_info < (3, 10))' >/dev/null 2>&1; then \
+		exit 0; \
+	fi; \
+	python=''; \
+	for candidate in python3.12 python3.11 python3.10 python3; do \
+		if command -v "$$candidate" >/dev/null 2>&1 && \
+			"$$candidate" -c 'import ssl, sys; raise SystemExit(sys.version_info < (3, 10))' >/dev/null 2>&1; then \
+			python="$$candidate"; \
+			break; \
+		fi; \
+	done; \
+	if [ -z "$$python" ]; then \
+		printf '%s\n' 'No usable Python found. Install Python 3.10+ with SSL support, then run make setup again.' >&2; \
+		exit 1; \
+	fi; \
+	printf 'Creating .venv with %s\n' "$$python"; \
+	"$$python" -m venv --clear "$(VENV)"
 
 connect:
 	opencode auth login --provider opencode
