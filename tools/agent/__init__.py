@@ -1,2 +1,3 @@
 # Agent loop for the game-controller workshop.
-# See ../PLAN.md Slice 2 for the durable contract.
+#
+# The durable contract lives in each module's docstring and in docs/.

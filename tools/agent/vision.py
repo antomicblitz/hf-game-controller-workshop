@@ -333,13 +333,13 @@ def _resolve_executable(name: str, label: str) -> Path | None:
 
 
 def _load_scene_context(case_path: Path) -> tuple[Any, Any, str]:
-    from editor.server import _editor_revision, _scene_for_case  # type: ignore[import-not-found]
+    from editor.server import editor_revision, scene_for_case  # type: ignore[import-not-found]
 
     try:
-        part, scene = _scene_for_case(case_path)
+        part, scene = scene_for_case(case_path)
         if scene is None:
             raise ValueError("typed case edits require a canonical ASSEMBLY_SPEC scene")
-        return part, scene, _editor_revision(case_path, scene, part)
+        return part, scene, editor_revision(case_path, scene, part)
     except CaseEditError:
         raise
     except Exception as exc:

@@ -238,12 +238,10 @@ def _iteration_context(
     try:
         from editor import server as editor_server  # type: ignore[import-not-found]
 
-        context_part, loaded_scene = editor_server.__dict__["_scene_for_case"](case_path)
+        context_part, loaded_scene = editor_server.scene_for_case(case_path)
         if loaded_scene is None:
             return None, None
-        context_revision = editor_server.__dict__["_editor_revision"](
-            case_path, loaded_scene, context_part
-        )
+        context_revision = editor_server.editor_revision(case_path, loaded_scene, context_part)
         return loaded_scene, context_revision
     except CaseEditError:
         raise

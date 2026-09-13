@@ -7,7 +7,6 @@ the exact Part and a bounded JSON scene from the mandatory OS sandbox.
 
 from __future__ import annotations
 
-import ast
 import base64
 import binascii
 import contextlib
@@ -846,393 +845,6 @@ def _accepted_target_error(
     return None
 
 
-def _direct_named_call(value: ast.AST | None, name: str) -> ast.Call | None:
-    if not isinstance(value, ast.Call):
-        return None
-    return value if isinstance(value.func, ast.Name) and value.func.id == name else None
-
-
-def _module_assignment(tree: ast.Module, name: str) -> ast.expr | None:
-    value: ast.expr | None = None
-    for statement in tree.body:
-        if isinstance(statement, ast.AnnAssign):
-            if isinstance(statement.target, ast.Name) and statement.target.id == name:
-                value = statement.value
-        elif isinstance(statement, ast.Assign) and any(
-            isinstance(target, ast.Name) and target.id == name for target in statement.targets
-        ):
-            value = statement.value
-    return value
-
-
-def _module_direct_call(tree: ast.Module, name: str, call_name: str) -> ast.Call | None:
-    return _direct_named_call(_module_assignment(tree, name), call_name)
-
-
-def _has_unique_named_keyword(call: ast.Call, keyword: str, value: str) -> bool:
-    matches = [
-        item
-        for item in call.keywords
-        if item.arg == keyword and isinstance(item.value, ast.Name) and item.value.id == value
-    ]
-    return len(matches) == 1
-
-
-def _has_raw_build123d_import(tree: ast.Module) -> bool:
-    allowed = {"BuildPart", "Location", "Locations", "Mode", "Part", "add"}
-    module_statements = {id(node) for node in tree.body}
-    for node in ast.walk(tree):
-        if (
-            isinstance(node, ast.ImportFrom)
-            and (node.module or "").startswith("build123d")
-            and (
-                id(node) not in module_statements
-                or node.module != "build123d"
-                or any(
-                    alias.name not in allowed or alias.asname is not None for alias in node.names
-                )
-            )
-        ):
-            return True
-        if isinstance(node, ast.Import) and any(
-            alias.name == "build123d" or alias.name.startswith("build123d.") for alias in node.names
-        ):
-            return True
-    return False
-
-
-def _imported_binding(alias: ast.alias, *, from_import: bool) -> str:
-    return alias.asname or (alias.name if from_import else alias.name.split(".", 1)[0])
-
-
-def _is_canonical_cadkit_import(
-    node: ast.ImportFrom,
-    alias: ast.alias,
-    name: str,
-    module_statements: set[int],
-) -> bool:
-    return (
-        id(node) in module_statements
-        and node.module == "cadkit"
-        and alias.name == name
-        and alias.asname is None
-    )
-
-
-def _from_import_binding_count(
-    node: ast.ImportFrom,
-    name: str,
-    module_statements: set[int],
-) -> int | None:
-    if any(alias.name == "*" for alias in node.names):
-        return None
-    matching = [alias for alias in node.names if _imported_binding(alias, from_import=True) == name]
-    if any(
-        not _is_canonical_cadkit_import(node, alias, name, module_statements) for alias in matching
-    ):
-        return None
-    return len(matching)
-
-
-def _cadkit_import_count_or_conflict(tree: ast.Module, name: str) -> int | None:
-    count = 0
-    module_statements = {id(statement) for statement in tree.body}
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom):
-            binding_count = _from_import_binding_count(node, name, module_statements)
-            if binding_count is None:
-                return None
-            count += binding_count
-        elif isinstance(node, ast.Import) and any(
-            _imported_binding(alias, from_import=False) == name for alias in node.names
-        ):
-            return None
-    return count
-
-
-def _attribute_root_name(node: ast.AST) -> str | None:
-    current = node
-    while isinstance(current, (ast.Attribute, ast.Subscript)):
-        current = current.value
-    return current.id if isinstance(current, ast.Name) else None
-
-
-def _source_shadows_name(tree: ast.Module, name: str) -> bool:
-    return any(
-        (
-            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
-            and node.name == name
-        )
-        or (
-            isinstance(node, ast.Name)
-            and node.id == name
-            and isinstance(node.ctx, (ast.Store, ast.Del))
-        )
-        or (isinstance(node, ast.arg) and node.arg == name)
-        or (isinstance(node, ast.ExceptHandler) and node.name == name)
-        or (isinstance(node, (ast.MatchAs, ast.MatchStar)) and node.name == name)
-        or (isinstance(node, ast.Attribute) and _attribute_root_name(node) == name)
-        for node in ast.walk(tree)
-    )
-
-
-def _has_unshadowed_cadkit_binding(tree: ast.Module, name: str) -> bool:
-    return _cadkit_import_count_or_conflict(tree, name) == 1 and not _source_shadows_name(
-        tree, name
-    )
-
-
-def _main_assignment_call(
-    function: ast.FunctionDef | ast.AsyncFunctionDef,
-    *,
-    targets: tuple[str, str],
-    call_name: str,
-) -> ast.Call | None:
-    for statement in function.body:
-        if not isinstance(statement, ast.Assign) or len(statement.targets) != 1:
-            continue
-        target = statement.targets[0]
-        if not isinstance(target, (ast.Tuple, ast.List)) or [
-            item.id if isinstance(item, ast.Name) else None for item in target.elts
-        ] != list(targets):
-            continue
-        return _direct_named_call(statement.value, call_name)
-    return None
-
-
-def _has_dynamic_geometry_binding(tree: ast.Module) -> bool:
-    dynamic_names = {
-        "__import__",
-        "delattr",
-        "eval",
-        "exec",
-        "globals",
-        "locals",
-        "setattr",
-        "vars",
-    }
-    return any(
-        isinstance(node, ast.Call)
-        and (
-            (isinstance(node.func, ast.Name) and node.func.id in dynamic_names)
-            or (isinstance(node.func, ast.Attribute) and node.func.attr == "import_module")
-        )
-        for node in ast.walk(tree)
-    )
-
-
-def _protected_geometry_binding_error(tree: ast.Module) -> str | None:
-    if _has_raw_build123d_import(tree):
-        return "candidate source may not recreate snap geometry with raw build123d primitives"
-    if _has_dynamic_geometry_binding(tree):
-        return "candidate source may not dynamically replace protected geometry bindings"
-    if not _has_unshadowed_cadkit_binding(tree, "gamepad_body"):
-        return "candidate source must retain the unshadowed cadkit gamepad_body import"
-    if not _has_unshadowed_cadkit_binding(tree, "snap_fit_pair"):
-        return "candidate source must retain the unshadowed cadkit snap_fit_pair import"
-    if not _has_unshadowed_cadkit_binding(tree, "orient_case_halves_for_print"):
-        return "candidate source must retain authoritative print orientation"
-    return None
-
-
-def _authoritative_main(tree: ast.Module) -> ast.FunctionDef | None:
-    functions = [
-        node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "main"
-    ]
-    return functions[0] if len(functions) == 1 else None
-
-
-def _snap_call_contract_error(tree: ast.Module, main_function: ast.FunctionDef) -> str | None:
-    snap_calls = [
-        call
-        for node in ast.walk(tree)
-        if (call := _direct_named_call(node, "snap_fit_pair")) is not None
-    ]
-    if len(snap_calls) != 1:
-        return "candidate source must retain exactly one authoritative snap_fit_pair call"
-    snap_call = _main_assignment_call(
-        main_function,
-        targets=("assembly_top", "assembly_bottom"),
-        call_name="snap_fit_pair",
-    )
-    if snap_call is None:
-        return "candidate source must apply snap_fit_pair to the exported shell halves"
-    if (
-        len(snap_call.args) != 1
-        or not isinstance(snap_call.args[0], ast.Name)
-        or snap_call.args[0].id != "case_for_main"
-        or bool(snap_call.keywords)
-    ):
-        return "candidate source may not parameterize authoritative snap-fit geometry"
-    return None
-
-
-def _print_orientation_contract_error(
-    tree: ast.Module, main_function: ast.FunctionDef
-) -> str | None:
-    orientation_calls = [
-        call
-        for node in ast.walk(tree)
-        if (call := _direct_named_call(node, "orient_case_halves_for_print")) is not None
-    ]
-    orientation_call = _main_assignment_call(
-        main_function,
-        targets=("top", "bottom"),
-        call_name="orient_case_halves_for_print",
-    )
-    actual_arguments = (
-        [
-            argument.id if isinstance(argument, ast.Name) else None
-            for argument in orientation_call.args
-        ]
-        if orientation_call is not None
-        else []
-    )
-    if (
-        len(orientation_calls) != 1
-        or orientation_call is None
-        or actual_arguments != ["assembly_top", "assembly_bottom"]
-        or bool(orientation_call.keywords)
-    ):
-        return "candidate source must retain authoritative broad-face-down print orientation"
-    return None
-
-
-def _authoritative_geometry_contract_error(
-    tree: ast.Module, body_calls: list[ast.Call]
-) -> str | None:
-    if len(body_calls) != 1:
-        return "candidate build_case must retain exactly one direct gamepad_body call"
-    body_call = body_calls[0]
-    if not _has_unique_named_keyword(body_call, "fillet_radius_mm", "FILLET_RADIUS_MM"):
-        return "candidate build_case must pass FILLET_RADIUS_MM as gamepad_body fillet_radius_mm"
-    required_body_keywords = (
-        ("length_mm", "CASE_LENGTH_MM"),
-        ("width_mm", "CASE_WIDTH_MM"),
-        ("thickness_mm", "CASE_THICKNESS_MM"),
-        ("feather_variant", "FEATHER_VARIANT"),
-        ("exterior_design", "EXTERIOR_DESIGN"),
-    )
-    if any(
-        not _has_unique_named_keyword(body_call, name, value)
-        for name, value in required_body_keywords
-    ):
-        return (
-            "candidate gamepad_body must retain canonical dimensions, fillet, Feather, "
-            "and EXTERIOR_DESIGN bindings"
-        )
-    if any(keyword.arg == "wall_thickness_mm" for call in body_calls for keyword in call.keywords):
-        return "candidate source may not override the authoritative shell wall thickness"
-    if binding_error := _protected_geometry_binding_error(tree):
-        return binding_error
-    main_function = _authoritative_main(tree)
-    if main_function is None:
-        return "candidate source must retain exactly one main function"
-    return _snap_call_contract_error(tree, main_function) or _print_orientation_contract_error(
-        tree, main_function
-    )
-
-
-def _assembly_contract_error(tree: ast.Module) -> str | None:
-    assembly_call = _module_direct_call(tree, "ASSEMBLY_SPEC", "build_demo_assembly")
-    if assembly_call is None:
-        return "candidate ASSEMBLY_SPEC must retain the direct build_demo_assembly call"
-    dimensions = assembly_call.args[0] if len(assembly_call.args) == 1 else None
-    canonical_dimensions = isinstance(dimensions, ast.Tuple) and [
-        item.id for item in dimensions.elts if isinstance(item, ast.Name)
-    ] == ["CASE_LENGTH_MM", "CASE_WIDTH_MM", "CASE_THICKNESS_MM"]
-    if not canonical_dimensions:
-        return "candidate ASSEMBLY_SPEC must retain canonical case dimensions"
-    if not _has_unique_named_keyword(assembly_call, "case_fillet_radius_mm", "FILLET_RADIUS_MM"):
-        return "candidate ASSEMBLY_SPEC must pass FILLET_RADIUS_MM as case_fillet_radius_mm"
-    if not _has_unique_named_keyword(assembly_call, "buttons", "CONTROLS"):
-        return (
-            "candidate ASSEMBLY_SPEC must retain canonical CONTROLS and FILLET_RADIUS_MM bindings"
-        )
-    if {item.arg for item in assembly_call.keywords} != {
-        "buttons",
-        "case_fillet_radius_mm",
-    }:
-        return "candidate ASSEMBLY_SPEC may not parameterize protected assembly geometry"
-    return None
-
-
-def _usb_contract_error(build_case: ast.FunctionDef | ast.AsyncFunctionDef) -> str | None:
-    calls = [
-        call
-        for node in ast.walk(build_case)
-        if (call := _direct_named_call(node, "shared_usb_opening")) is not None
-    ]
-    if len(calls) != 1:
-        return "candidate build_case must retain exactly one shared USB opening call"
-    call = calls[0]
-    argument = call.args[0] if len(call.args) == 1 else None
-    canonical_argument = isinstance(argument, ast.Tuple) and [
-        item.attr
-        for item in argument.elts
-        if isinstance(item, ast.Attribute)
-        and isinstance(item.value, ast.Name)
-        and item.value.id == "opening_dimensions"
-    ] == ["x", "y", "z"]
-    if not canonical_argument:
-        return "candidate build_case must retain the canonical shared USB opening dimensions"
-    if call.keywords:
-        return "candidate build_case may not parameterize the shared USB opening"
-    return None
-
-
-def _build_case_contract_error(tree: ast.Module) -> str | None:
-    build_cases = [
-        node
-        for node in tree.body
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "build_case"
-    ]
-    if len(build_cases) != 1:
-        return "candidate source must retain exactly one build_case function"
-    build_case = build_cases[0]
-    if usb_error := _usb_contract_error(build_case):
-        return usb_error
-    body_calls = [
-        call
-        for node in ast.walk(build_case)
-        if (call := _direct_named_call(node, "gamepad_body")) is not None
-    ]
-    placements_call = _module_direct_call(tree, "PLACEMENTS", "placements_from_assembly")
-    if placements_call is None or len(placements_call.args) != 1 or placements_call.keywords:
-        return "candidate PLACEMENTS must be derived from ASSEMBLY_SPEC"
-    if (
-        not isinstance(placements_call.args[0], ast.Name)
-        or placements_call.args[0].id != "ASSEMBLY_SPEC"
-    ):
-        return "candidate PLACEMENTS must be derived exactly from ASSEMBLY_SPEC"
-    case_call = _module_direct_call(tree, "case", "build_case")
-    if case_call is None or case_call.args or case_call.keywords:
-        return "candidate case must be the direct build_case result"
-    return _authoritative_geometry_contract_error(tree, body_calls)
-
-
-def _source_contract_error(path: Path) -> str | None:
-    try:
-        tree = ast.parse(path.read_text(), filename=str(path))
-    except (OSError, SyntaxError) as exc:
-        return f"candidate source is not valid Python: {exc}"
-    names = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
-    missing = sorted(
-        {"CONTROLS", "EXTERIOR_DESIGN", "ASSEMBLY_SPEC", "PLACEMENTS", "build_case", "case"} - names
-    )
-    if missing:
-        return f"candidate source is missing required names: {', '.join(missing)}"
-    try:
-        from cadkit.case_source import inspect_exterior_design_source
-
-        inspect_exterior_design_source(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
-        return f"candidate source must retain a literal EXTERIOR_DESIGN binding: {exc}"
-    if assembly_error := _assembly_contract_error(tree):
-        return assembly_error
-    return _build_case_contract_error(tree)
-
-
 def _resolve_case_path(value: str) -> Path | None:
     session = Path(__file__).resolve().parents[2]
     candidate = session / value
@@ -1256,7 +868,7 @@ def _case_artifacts(path: Path) -> Any:
     return execute_case_artifacts(path)
 
 
-def _editor_revision(case_path: Path, scene: Any, part: Any) -> str:
+def editor_revision(case_path: Path, scene: Any, part: Any) -> str:
     """Return a stable revision for one validated source/scene/geometry triple."""
     payload = {
         "case_sha256": hashlib.sha256(_read_case_bytes(case_path)).hexdigest(),
@@ -1271,7 +883,7 @@ def _manifest_with_revision(case_path: Path, scene: Any, part: Any) -> dict[str,
     from cadkit.manifest import from_case_path
 
     manifest = from_case_path(case_path, scene.to_dict())
-    manifest["editor_revision"] = _editor_revision(case_path, scene, part)
+    manifest["editor_revision"] = editor_revision(case_path, scene, part)
     return manifest
 
 
@@ -1406,7 +1018,7 @@ def _prototype_stl(part_name: str) -> Any:
             part, scene, placements = _requested_prototype_geometry(
                 case_path, artifacts, part, scene
             )
-            current_revision = _editor_revision(case_path, scene, part)
+            current_revision = editor_revision(case_path, scene, part)
             if revision != current_revision:
                 return jsonify(
                     {
@@ -1472,7 +1084,7 @@ def _scene_from_artifacts(path: Path, artifacts: Any) -> tuple[Any, Any | None]:
     return artifacts.part, scene
 
 
-def _scene_for_case(path: Path) -> tuple[Any, Any | None]:
+def scene_for_case(path: Path) -> tuple[Any, Any | None]:
     return _scene_from_artifacts(path, _case_artifacts(path))
 
 
@@ -1894,7 +1506,7 @@ def _validate_move() -> Any:
     moves = body.get("moves")
     with _case_lock(path):
         try:
-            part, scene = _scene_for_case(path)
+            part, scene = scene_for_case(path)
             if scene is None:
                 return jsonify(
                     {
@@ -1918,7 +1530,7 @@ def _validate_move() -> Any:
                 preview_part = part
                 final_scene = scene
             glb = _render_case_glb(preview_part, final_scene)
-            editor_revision = _editor_revision(path, final_scene, preview_part)
+            final_revision = editor_revision(path, final_scene, preview_part)
             revision_moves = _revision_moves(scene, final_scene)
         except SceneMoveError as exc:
             result = dict(exc.result)
@@ -1931,7 +1543,7 @@ def _validate_move() -> Any:
         "accepted_moves": accepted,
         "scene": final_scene.to_dict(),
         "glb_b64": base64.b64encode(glb).decode("ascii"),
-        "editor_revision": editor_revision,
+        "editor_revision": final_revision,
         "revision_moves": revision_moves,
     }
     if accepted:
@@ -1957,7 +1569,7 @@ def _snapshot() -> Any:
             raise FileNotFoundError(f"case.py not found: {body['part_path']}")
         lock = _case_lock(path) if path is not None else contextlib.nullcontext()
         with lock:
-            part, scene = _scene_for_case(path) if path is not None else (_synthetic_box(), None)
+            part, scene = scene_for_case(path) if path is not None else (_synthetic_box(), None)
             glb = _render_case_glb(part, scene)
             base = _snapshot_base_png(body, width, height)
             snapshot = composite_snapshot(base, overlay, width, height)
@@ -2055,10 +1667,10 @@ def _reset() -> Any:
         with _case_lock(case_path):
             current_bytes = _read_case_bytes(case_path)
             current_source = current_bytes.decode("utf-8")
-            current_part, current_scene = _scene_for_case(case_path)
+            current_part, current_scene = scene_for_case(case_path)
             if current_scene is None:
                 raise ValueError("reset requires a canonical ASSEMBLY_SPEC scene")
-            current_revision = _editor_revision(case_path, current_scene, current_part)
+            current_revision = editor_revision(case_path, current_scene, current_part)
             if revision != current_revision:
                 return jsonify(
                     {
@@ -2148,9 +1760,7 @@ def _save_submission(
             {
                 "submit_id": submit_id,
                 "case_path": case_path_str,
-                "received_at": _dt.datetime.now(_dt.timezone.utc)
-                .isoformat()
-                .replace("+00:00", "Z"),
+                "received_at": _dt.datetime.now(_dt.UTC).isoformat().replace("+00:00", "Z"),
                 "feedback_path": str(work_dir / "feedback.json"),
                 "snapshot_path": str(work_dir / "snapshot.png") if snapshot else None,
             },
@@ -2233,7 +1843,7 @@ def _render_submission(
 ) -> tuple[tuple[str, str] | None, Exception | None]:
     del manifest
     try:
-        part, scene = _scene_for_case(case_path)
+        part, scene = scene_for_case(case_path)
         glb = _render_case_glb(part, scene)
         snapshot = composite_snapshot(
             make_test_base_png(800, 600), "<svg xmlns='http://www.w3.org/2000/svg'/>", 800, 600
@@ -2476,7 +2086,7 @@ def _submission_base_revision(
     if canonical_scene is None or canonical_part is None or feedback_scene is None:
         return None
     if not accepted:
-        return _editor_revision(case_path, feedback_scene, canonical_part)
+        return editor_revision(case_path, feedback_scene, canonical_part)
     from cadkit.assembly import placements_from_assembly
 
     feedback_part, _ = _preview_part_for_moves(
@@ -2486,7 +2096,7 @@ def _submission_base_revision(
         baseline_part=canonical_part,
         baseline_placements=placements_from_assembly(canonical_scene),
     )
-    return _editor_revision(case_path, feedback_scene, feedback_part)
+    return editor_revision(case_path, feedback_scene, feedback_part)
 
 
 def _coalesce_control_moves(
@@ -2562,7 +2172,7 @@ def _submit_locked(case_path: Path, case_path_str: str, feedback: JsonObject, sn
         canonical_scene = None
         canonical_part = None
         if has_assembly_spec(case_path):
-            canonical_part, canonical_scene = _scene_for_case(case_path)
+            canonical_part, canonical_scene = scene_for_case(case_path)
         feedback_scene, accepted, feedback_error = _feedback_moves(canonical_scene, feedback)
         if feedback_error is not None:
             return feedback_error
@@ -2584,7 +2194,9 @@ def _submit_locked(case_path: Path, case_path_str: str, feedback: JsonObject, sn
         candidate_path = work_dir / "case.py"
         if not candidate_path.is_file():
             raise RuntimeError("orchestrator did not produce a private candidate case.py")
-        source_error = _source_contract_error(candidate_path)
+        from cadkit.case_contract import source_contract_error
+
+        source_error = source_contract_error(candidate_path)
         if source_error and canonical_scene is not None:
             raise RuntimeError(source_error)
         if canonical_scene is None:

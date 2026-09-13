@@ -32,9 +32,7 @@ import os
 import re
 import shutil
 import subprocess
-from collections.abc import Callable, Generator
-from contextlib import contextmanager
-from enum import Enum
+from collections.abc import Callable
 from typing import Any, cast
 
 # Block the yacv-server auto-start at import time. We instantiate YACV
@@ -143,38 +141,10 @@ def _is_ocp_shape(obj: Any) -> bool:
     return cls.startswith("OCP.")
 
 
-@contextmanager
-def _http_method_compat() -> Generator[None, None, None]:
-    """Temporarily provide Python 3.11's HTTPMethod to older interpreters."""
-    import http
-
-    http_module: Any = http
-    if hasattr(http_module, "HTTPMethod"):
-        yield
-        return
-
-    class _HTTPMethod(str, Enum):
-        CONNECT = "CONNECT"
-        DELETE = "DELETE"
-        GET = "GET"
-        HEAD = "HEAD"
-        OPTIONS = "OPTIONS"
-        PATCH = "PATCH"
-        POST = "POST"
-        PUT = "PUT"
-        TRACE = "TRACE"
-
-    http_module.HTTPMethod = _HTTPMethod
-    try:
-        yield
-    finally:
-        delattr(http_module, "HTTPMethod")
-
-
 def _import_yacv_tessellate() -> Any:
-    """Import YACV's tessellator with a narrowly scoped HTTPMethod fallback."""
-    with _http_method_compat():
-        import yacv_server.tessellate as _tess
+    """Import YACV's tessellator. http.HTTPMethod exists on every supported
+    interpreter (3.12+), so the historical fallback shim is no longer needed."""
+    import yacv_server.tessellate as _tess
 
     return _tess
 

@@ -81,9 +81,9 @@ def _submit_snapshot() -> str:
 def _case_revision(case_path: Path) -> str:
     from tools.editor import server
 
-    part, scene = server.__dict__["_scene_for_case"](case_path)
+    part, scene = server.scene_for_case(case_path)
     assert scene is not None
-    return cast(str, server.__dict__["_editor_revision"](case_path, scene, part))
+    return server.editor_revision(case_path, scene, part)
 
 
 def _artifact_scene(artifacts: Any) -> Any:
@@ -125,7 +125,7 @@ def test_submit_publishes_exterior_only_model_proposal(
     before_scene = _artifact_scene(before)
     from tools.editor import server
 
-    revision = server.__dict__["_editor_revision"](isolated_case, before_scene, before.part)
+    revision = server.editor_revision(isolated_case, before_scene, before.part)
     response = _proposal(
         base_revision=revision,
         exterior_design={"profile": "snes_inspired"},
@@ -155,7 +155,7 @@ def test_submit_publishes_exterior_only_model_proposal(
     assert after_scene.to_dict() == before_scene.to_dict()
     assert not math.isclose(before.part.volume, after.part.volume, abs_tol=1e-6)
 
-    assert body["manifest"]["editor_revision"] == server.__dict__["_editor_revision"](
+    assert body["manifest"]["editor_revision"] == server.editor_revision(
         isolated_case, after_scene, after.part
     )
 
@@ -295,7 +295,7 @@ def test_exterior_only_changes_part_without_control_scene_changes() -> None:
     from tools.agent import vision
     from tools.editor import server
 
-    scene = server.__dict__["_scene_for_case"](_case)[1]
+    scene = server.scene_for_case(_case)[1]
     assert scene is not None
     final_scene, accepted, exterior = vision._apply_llm_proposal(  # pyright: ignore[reportPrivateUsage]
         scene,
@@ -461,7 +461,7 @@ def test_builtin_exteriors_pass_all_derived_protected_regions() -> None:
 
     from tools.editor import server
 
-    _base_part, scene = server.__dict__["_scene_for_case"](_case)
+    _base_part, scene = server.scene_for_case(_case)
     assert scene is not None
     regions = server.__dict__["_protected_exterior_regions"](scene)
     baseline = gamepad_body(exterior_design=ExteriorDesignSpec(profile="rounded"))
@@ -484,7 +484,7 @@ def test_moved_control_protection_is_not_dropped_from_candidate_regions() -> Non
 
     from tools.editor import server
 
-    _base_part, scene = server.__dict__["_scene_for_case"](_case)
+    _base_part, scene = server.scene_for_case(_case)
     assert scene is not None
     moved_scene, _accepted = server.__dict__["_apply_revision_moves"](
         scene,

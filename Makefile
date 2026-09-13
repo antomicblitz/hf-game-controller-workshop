@@ -82,7 +82,7 @@ markdown:
 	$(PYTHON) -m pymarkdown --config pyproject.toml scan --recurse --respect-gitignore .
 
 typecheck:
-	$(PYTHON) -m pyright --pythonpath $(PYTHON)
+	$(PYTHON) -m pyright --pythonpath "$(shell command -v $(PYTHON) 2>/dev/null || echo $(PYTHON))"
 
 test:
 	$(PYTHON) -m pytest $(FAST_TEST_FILES) -q
