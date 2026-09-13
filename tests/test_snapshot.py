@@ -769,7 +769,7 @@ def test_candidate_source_must_keep_case_fillet_scene_synchronized(tmp_path: Pat
     candidate = tmp_path / "case.py"
     source = source_path.read_text()
     candidate.write_text(source)
-    source_contract_error = server.__dict__["_source_contract_error"]
+    from cadkit.case_contract import source_contract_error
 
     assert source_contract_error(candidate) is None
 
@@ -799,7 +799,7 @@ def test_candidate_source_cannot_parameterize_authoritative_snap_geometry(tmp_pa
     source_path = Path(server.__file__).resolve().parents[2] / "examples/6-button-gamepad/case.py"
     candidate = tmp_path / "case.py"
     source = source_path.read_text()
-    source_contract_error = server.__dict__["_source_contract_error"]
+    from cadkit.case_contract import source_contract_error
 
     for replacement in (
         "snap_fit_pair(case_for_main, clip_width_mm=8.0)",
