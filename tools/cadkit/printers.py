@@ -64,31 +64,18 @@ from __future__ import annotations
 import hashlib
 import math
 import re
-
-# ``agent.profiles`` lives under ``tools/agent/``; the agent.profiles
-# module is on sys.path via the same convention used by the existing
-# parametric module (when ``tools/`` is on sys.path, ``agent.*`` and
-# ``cadkit.*`` are both importable).
-import sys as _sys
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
-_TOOLS = Path(__file__).resolve().parent.parent
-if str(_TOOLS) not in _sys.path:
-    _sys.path.insert(0, str(_TOOLS))
-from agent.profiles import (  # type: ignore[import-not-found]  # noqa: E402
+from .evidence import FrozenEvidenceRef as _FrozenEvidenceRef
+from .printer_templates import (
     ENDER_3_0_4_TEMPLATE,
     ENDER_3_PRO_0_4_TEMPLATE,
     ENDER_3_S1_PRO_0_4_TEMPLATE,
     PRUSA_XL_0_2_TEMPLATE,
 )
-
-# The runtime import path is identical to the type-checking path; we
-# inline the import so the forward-reference strings resolve at runtime
-# when ``from __future__ import annotations`` is active.
-from .evidence import FrozenEvidenceRef as _FrozenEvidenceRef  # noqa: E402
 
 
 # ---------------------------------------------------------------------------

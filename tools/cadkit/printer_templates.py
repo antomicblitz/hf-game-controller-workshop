@@ -24,8 +24,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-# Layout: sessions/2026-09-04-05/tools/agent/<this>.py
-#          sessions/2026-09-04-05/tools/slice/  ← profiles
+# Template names are slicer-config paths relative to tools/; they are
+# opaque profile identifiers, never read by this repository.
 _HERE = Path(__file__).resolve().parent
 _SLICE_DIR = _HERE.parent / "slice"
 
