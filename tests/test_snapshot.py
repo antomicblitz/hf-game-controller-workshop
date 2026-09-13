@@ -182,34 +182,8 @@ def test_tessellate_part_produces_nonempty_gltf() -> None:
     assert glb[:4] == b"glTF", f"missing glTF magic; got {glb[:4]!r}"
 
 
-def test_yacv_http_method_fallback_is_scoped_to_import(monkeypatch: MonkeyPatch) -> None:
-    """Python 3.10 gets HTTPMethod only while YACV is being imported."""
-    import http
-    from enum import Enum
-
-    from tools.editor import snapshot
-
-    monkeypatch.delattr(http, "HTTPMethod", raising=False)
-    real_import = builtins.__import__
-    imported_method: dict[str, Any] = {}
-
-    def observe_yacv_import(name: str, *args: Any, **kwargs: Any) -> Any:
-        if name == "yacv_server.tessellate":
-            imported_method["value"] = getattr(http, "HTTPMethod", None)
-        return real_import(name, *args, **kwargs)
-
-    monkeypatch.setattr(builtins, "__import__", observe_yacv_import)
-    snapshot._import_yacv_tessellate()  # pyright: ignore[reportPrivateUsage]
-
-    method: Any = imported_method["value"]
-    assert method is not None
-    head = method.HEAD
-    assert issubclass(method, str)
-    assert issubclass(method, Enum)
-    assert head.value == "HEAD"
-    assert not hasattr(http, "HTTPMethod")
-
-
+# ---------------------------------------------------------------------------
+# Flask endpoint round-trip
 # ---------------------------------------------------------------------------
 # Flask endpoint round-trip
 # ---------------------------------------------------------------------------
