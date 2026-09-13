@@ -40,9 +40,8 @@ a compatible connected controller, handles reconnects, and applies a digital
 dead zone. Build game rules against its semantic values instead of reading
 `navigator.getGamepads()` again.
 
-**Super Maga Bros** is the in-class reference for a small controller game. Its
-public link will be added after Antonio supplies it; this repository does not
-copy or depend on its code.
+**Super Maga Bros** is the in-class reference for a small controller game.
+This repository does not copy or depend on its code.
 
 ## STL viewer
 
