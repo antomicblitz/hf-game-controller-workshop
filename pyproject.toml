@@ -50,14 +50,9 @@ pythonVersion = "3.12"
 typeCheckingMode = "strict"
 
 [tool.pytest.ini_options]
-addopts = "-m 'not slow and not hardware and not network' --timeout=120"
+addopts = "--timeout=120"
 filterwarnings = [
     "ignore:Due to '_pack_',.*:DeprecationWarning:lib3mf[.]Lib3MF",
-]
-markers = [
-    "slow: long-running tests excluded from the default gate",
-    "hardware: tests requiring physical workshop hardware",
-    "network: tests requiring external network access",
 ]
 
 [tool.coverage.run]
@@ -68,7 +63,6 @@ omit = [
     "tools/cadkit/coupons.py",
     "tools/cadkit/electronics_backbone.py",
     "tools/cadkit/evidence.py",
-    "tools/cadkit/export.py",
     "tools/cadkit/geometry_evidence.py",
     "tools/cadkit/printers.py",
     "tools/cadkit/snap.py",
