@@ -2148,9 +2148,7 @@ def _save_submission(
             {
                 "submit_id": submit_id,
                 "case_path": case_path_str,
-                "received_at": _dt.datetime.now(_dt.timezone.utc)
-                .isoformat()
-                .replace("+00:00", "Z"),
+                "received_at": _dt.datetime.now(_dt.UTC).isoformat().replace("+00:00", "Z"),
                 "feedback_path": str(work_dir / "feedback.json"),
                 "snapshot_path": str(work_dir / "snapshot.png") if snapshot else None,
             },

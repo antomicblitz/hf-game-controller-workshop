@@ -17,7 +17,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from itertools import pairwise
 from pathlib import Path
-from typing import Any, TypeAlias, cast
+from typing import Any, cast
 
 from cadkit.assembly import (
     MAX_ASSEMBLY_WAYPOINTS,
@@ -26,9 +26,9 @@ from cadkit.assembly import (
     WireRoute,
 )
 
-Point3: TypeAlias = tuple[float, float, float]
-Triangle: TypeAlias = tuple[int, int, int]
-AccessorBounds: TypeAlias = tuple[Sequence[float] | float, Sequence[float] | float]
+type Point3 = tuple[float, float, float]
+type Triangle = tuple[int, int, int]
+type AccessorBounds = tuple[Sequence[float] | float, Sequence[float] | float]
 MAX_ROUTE_SEGMENTS = 4_096
 MAX_TOTAL_VERTICES = 200_000
 MAX_TOTAL_TRIANGLES = 300_000
