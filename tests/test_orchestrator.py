@@ -66,13 +66,13 @@ def submit_dir(tmp_path: Path) -> Path:
 def _typed_response(case_path: Path, target: list[float]) -> str:
     from tools.editor import server
 
-    part, scene = server.__dict__["_scene_for_case"](case_path)
+    part, scene = server.scene_for_case(case_path)
     assert scene is not None
     return json.dumps(
         {
             "schema": "cadkit.case-edit",
             "version": "1.0",
-            "base_revision": server.__dict__["_editor_revision"](case_path, scene, part),
+            "base_revision": server.editor_revision(case_path, scene, part),
             "control_moves": [{"id": "control.action_a", "target": target}],
             "exterior_design": None,
         }

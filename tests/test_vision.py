@@ -254,9 +254,9 @@ def test_case_edit_parser_rejects_clean_python_source():
 def _typed_response(case_path: Path, target: list[float]) -> str:
     from tools.editor import server
 
-    part, scene = server.__dict__["_scene_for_case"](case_path)
+    part, scene = server.scene_for_case(case_path)
     assert scene is not None
-    revision = server.__dict__["_editor_revision"](case_path, scene, part)
+    revision = server.editor_revision(case_path, scene, part)
     return json.dumps(
         {
             "schema": "cadkit.case-edit",

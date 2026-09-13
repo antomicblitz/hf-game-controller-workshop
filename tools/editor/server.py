@@ -1256,7 +1256,7 @@ def _case_artifacts(path: Path) -> Any:
     return execute_case_artifacts(path)
 
 
-def _editor_revision(case_path: Path, scene: Any, part: Any) -> str:
+def editor_revision(case_path: Path, scene: Any, part: Any) -> str:
     """Return a stable revision for one validated source/scene/geometry triple."""
     payload = {
         "case_sha256": hashlib.sha256(_read_case_bytes(case_path)).hexdigest(),
@@ -1271,7 +1271,7 @@ def _manifest_with_revision(case_path: Path, scene: Any, part: Any) -> dict[str,
     from cadkit.manifest import from_case_path
 
     manifest = from_case_path(case_path, scene.to_dict())
-    manifest["editor_revision"] = _editor_revision(case_path, scene, part)
+    manifest["editor_revision"] = editor_revision(case_path, scene, part)
     return manifest
 
 
@@ -1406,7 +1406,7 @@ def _prototype_stl(part_name: str) -> Any:
             part, scene, placements = _requested_prototype_geometry(
                 case_path, artifacts, part, scene
             )
-            current_revision = _editor_revision(case_path, scene, part)
+            current_revision = editor_revision(case_path, scene, part)
             if revision != current_revision:
                 return jsonify(
                     {
@@ -1472,7 +1472,7 @@ def _scene_from_artifacts(path: Path, artifacts: Any) -> tuple[Any, Any | None]:
     return artifacts.part, scene
 
 
-def _scene_for_case(path: Path) -> tuple[Any, Any | None]:
+def scene_for_case(path: Path) -> tuple[Any, Any | None]:
     return _scene_from_artifacts(path, _case_artifacts(path))
 
 
@@ -1894,7 +1894,7 @@ def _validate_move() -> Any:
     moves = body.get("moves")
     with _case_lock(path):
         try:
-            part, scene = _scene_for_case(path)
+            part, scene = scene_for_case(path)
             if scene is None:
                 return jsonify(
                     {
@@ -1918,7 +1918,7 @@ def _validate_move() -> Any:
                 preview_part = part
                 final_scene = scene
             glb = _render_case_glb(preview_part, final_scene)
-            editor_revision = _editor_revision(path, final_scene, preview_part)
+            final_revision = editor_revision(path, final_scene, preview_part)
             revision_moves = _revision_moves(scene, final_scene)
         except SceneMoveError as exc:
             result = dict(exc.result)
@@ -1931,7 +1931,7 @@ def _validate_move() -> Any:
         "accepted_moves": accepted,
         "scene": final_scene.to_dict(),
         "glb_b64": base64.b64encode(glb).decode("ascii"),
-        "editor_revision": editor_revision,
+        "editor_revision": final_revision,
         "revision_moves": revision_moves,
     }
     if accepted:
@@ -1957,7 +1957,7 @@ def _snapshot() -> Any:
             raise FileNotFoundError(f"case.py not found: {body['part_path']}")
         lock = _case_lock(path) if path is not None else contextlib.nullcontext()
         with lock:
-            part, scene = _scene_for_case(path) if path is not None else (_synthetic_box(), None)
+            part, scene = scene_for_case(path) if path is not None else (_synthetic_box(), None)
             glb = _render_case_glb(part, scene)
             base = _snapshot_base_png(body, width, height)
             snapshot = composite_snapshot(base, overlay, width, height)
@@ -2055,10 +2055,10 @@ def _reset() -> Any:
         with _case_lock(case_path):
             current_bytes = _read_case_bytes(case_path)
             current_source = current_bytes.decode("utf-8")
-            current_part, current_scene = _scene_for_case(case_path)
+            current_part, current_scene = scene_for_case(case_path)
             if current_scene is None:
                 raise ValueError("reset requires a canonical ASSEMBLY_SPEC scene")
-            current_revision = _editor_revision(case_path, current_scene, current_part)
+            current_revision = editor_revision(case_path, current_scene, current_part)
             if revision != current_revision:
                 return jsonify(
                     {
@@ -2231,7 +2231,7 @@ def _render_submission(
 ) -> tuple[tuple[str, str] | None, Exception | None]:
     del manifest
     try:
-        part, scene = _scene_for_case(case_path)
+        part, scene = scene_for_case(case_path)
         glb = _render_case_glb(part, scene)
         snapshot = composite_snapshot(
             make_test_base_png(800, 600), "<svg xmlns='http://www.w3.org/2000/svg'/>", 800, 600
@@ -2474,7 +2474,7 @@ def _submission_base_revision(
     if canonical_scene is None or canonical_part is None or feedback_scene is None:
         return None
     if not accepted:
-        return _editor_revision(case_path, feedback_scene, canonical_part)
+        return editor_revision(case_path, feedback_scene, canonical_part)
     from cadkit.assembly import placements_from_assembly
 
     feedback_part, _ = _preview_part_for_moves(
@@ -2484,7 +2484,7 @@ def _submission_base_revision(
         baseline_part=canonical_part,
         baseline_placements=placements_from_assembly(canonical_scene),
     )
-    return _editor_revision(case_path, feedback_scene, feedback_part)
+    return editor_revision(case_path, feedback_scene, feedback_part)
 
 
 def _coalesce_control_moves(
@@ -2560,7 +2560,7 @@ def _submit_locked(case_path: Path, case_path_str: str, feedback: JsonObject, sn
         canonical_scene = None
         canonical_part = None
         if has_assembly_spec(case_path):
-            canonical_part, canonical_scene = _scene_for_case(case_path)
+            canonical_part, canonical_scene = scene_for_case(case_path)
         feedback_scene, accepted, feedback_error = _feedback_moves(canonical_scene, feedback)
         if feedback_error is not None:
             return feedback_error

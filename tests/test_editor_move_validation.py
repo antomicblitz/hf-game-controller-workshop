@@ -578,7 +578,7 @@ def test_validate_move_renders_preview_part_for_moves_and_canonical_part_for_emp
 
     monkeypatch.setattr(server, "_preview_part_for_moves", preview)
     monkeypatch.setattr(server, "_render_case_glb", render)
-    monkeypatch.setattr(server, "_editor_revision", revision)
+    monkeypatch.setattr(server, "editor_revision", revision)
 
     moved_response = _move(client, "control.up", [34.9, 60.0])
     empty_response = client.post(
